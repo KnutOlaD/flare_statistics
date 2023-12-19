@@ -11,6 +11,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.ticker as ticker
 import utm as utm
+import matplotlib.path as mpltPath
 
 ###########################
 ####### FUNCTIONS #########
@@ -37,46 +38,27 @@ def nan_remover(data,
     return data
 
 
-def only_within_area(data_pos,
-                        survey_area_corners_lonlat='None',
-                        survey_area_corners_utm='None',
-                        lonlat=True):
-        '''Function for removing all data points outside the survey area. The survey area is defined by the corners of the survey area.
-        The corners can be given in lonlat or utm coordinates. If the corners are given in lonlat coordinates, they will be converted to utm coordinates.
+def only_within_area(data,
+                        survey_area_corners_lonlat):
+        '''Function for removing all data points outside the survey area.
         The survey area corners should be given as a list of two lists, where the first list contains the latitudes and the second list contains the longitudes.
-        I.e. in this format [[lat1, lat2, lat3, lat4], [lon1, lon2, lon3, lon4]]. Lat1 and lon1 should be the lower left corner of the survey area, lat2 and lon2
-        should be the lower right corner of the survey area, lat3 and lon3 should be the upper right corner of the survey area and lat4 and lon4 should be the upper
-        left corner of the survey area. Returns the indices of the data points which are within the survey area. Data can be in 
+        I.e. in this format [[upper left],upper right],[lower right],[lower left]] in [lon,lat] Returns the indices of the data points which are within the survey area. Data can be in 
         lonlat or utm coordinates. Default is lonlat coordinates, i.e. lonlat = True. Uses utm.from_latlon to convert lonlat to utm coordinates.'''
         index_list = []
-        
-        #check if data is in lonlat or utm coordinates
-        if lonlat == True:
-            #convert to utm
-            data_pos = utm.from_latlon(data_pos['lat'], data_pos['lon'])
-
-        #convert the survey area corners to utm coordinates
-        if survey_area_corners_lonlat != 'None':
-            survey_area_corners_utm = utm.from_latlon(survey_area_corners_lonlat[0], survey_area_corners_lonlat[1])
-        else:
-            pass
         #loop through all the keys in the dictionary and remove all data points outside the survey area
-        for key in data_pos.keys():
-            #loop through all the data points
-            for i in range(len(data_pos[key])):
-                #check if the data point is within the survey area
-
-                if data_pos[0] < survey_area_corners_utm[0][0] or data_pos[0] > survey_area_corners_utm[0][2] or data_pos[1] < survey_area_corners_utm[1][0] or data_pos[1] > survey_area_corners_utm[1][1]:
-                    #if the data point is not within the survey area, remove it
-                    index_list.append(i)
-                else:
-                    pass
-    
+        quadrilateral = mpltPath.Path(np.array(survey_area_corners_lonlat))
+        #loop through and remove all data points outside the survey area
+        for i in range(len(data['lon'])):
+        #check if the data point is within the survey area
+            if quadrilateral.contains_point((data['lon'][i], data['lat'][i])) == False:
+            #if the data point is not within the survey area, remove it
+                pass
+            else:
+                index_list.append(i)
         return index_list
 
 
 def load_data(filename,
-              survey_area_corners_lonlat='None',
               interactive=False):
     '''Function for loading the data from the xlsx file. Has an interactive mode where the
     user can select which columns to add in the output dictionary.'''
@@ -100,6 +82,15 @@ def load_data(filename,
             #if the user wants to add the column to the dictionary, add it
             if add_column == 'y':
                 data[column_names[i]] = df[column_names[i]]
+                #if there's no column name, i.e. the column name is 'Unnamed: xx' prompt the user to enter a column name
+                if column_names[i][0:8] == 'Unnamed:':
+                    new_column_name = input('Enter a column name or press enter to use default: ')
+                    #if the user doesn't enter a column name, use the default column name
+                    if new_column_name == '':
+                        data[column_names[i]] = df[column_names[i]]
+                    #if the user enters a column name, use that column name
+                    else:
+                        data[new_column_name] = df[column_names[i]]          
             #if the user doesn't want to add the column to the dictionary, skip it
             else:
                 pass
@@ -114,6 +105,62 @@ def load_data(filename,
 
     return data
 
+def replace_dict_keys(data,
+                      old_keys,
+                      new_keys,
+                      interactive=False):
+    '''Function for replacing the keys in the dictionary with new keys. Takes a list of the old keys and a list of the new keys as input.'''
+    #loop through all the old keys and replace them one by one interactively or automatically
+    if interactive == True:
+        for i in range(len(old_keys)):
+            #ask the user if they want to replace the key
+            replace_key = input(f'What do you want to replace the key {old_keys[i]} with? (press enter to use old key) ')
+            #if the user wants to replace the key, replace it
+            if replace_key == '':
+                data[new_keys[i]] = data.pop(old_keys[i])
+            #if the user doesn't want to replace the key, skip it
+            else:
+                pass
+    
+    else:
+        #loop through all the old keys and replace them one by one
+        for i in range(len(old_keys)):
+            data[new_keys[i]] = data.pop(old_keys[i])
+    
+    return data
+
+def plot_survey_area(data,remove_idxs,survey_area_corners_lonlat,cmap_name='spring',savefigure='None',show_plot = True):
+    ''' Function for plotting the survey area and the data points within the survey area. 
+    Takes the data dictionary, the indices of the data points within the survey area and 
+    the survey area corners as input.'''
+
+    fig, ax = plt.subplots(1,2, figsize=(10,5))
+    colormap_name = cmap_name
+
+    ax[0].scatter(data['lon'], data['lat'], c=data['flow'], s=1, cmap=colormap_name)
+    ax[0].set_title('All data')
+    ax[0].set_xlabel('Longitude')
+    ax[0].set_ylabel('Latitude')
+
+    #in the plot with only the data within the survey area
+    ax[1].scatter(data['lon'][remove_idxs], data['lat'][remove_idxs], c=data['flow'][remove_idxs], s=1, cmap=colormap_name)
+    ax[1].set_title('Survey area')
+    ax[1].set_xlabel('Longitude')
+    #add a rectangle around the survey area
+    x = [survey_area_corners_lonlat[0][0], survey_area_corners_lonlat[1][0], survey_area_corners_lonlat[2][0], survey_area_corners_lonlat[3][0], survey_area_corners_lonlat[0][0]]
+    y = [survey_area_corners_lonlat[0][1], survey_area_corners_lonlat[1][1], survey_area_corners_lonlat[2][1], survey_area_corners_lonlat[3][1], survey_area_corners_lonlat[0][1]]
+    ax[0].plot(x,y, c='c')
+    ax[1].plot(x,y, c='c')
+    #put the y ticks on the right side of the second plot
+    ax[1].yaxis.tick_right()
+    #choose a colormap that works well with black background
+    if savefigure != 'None':
+        plt.savefig(savefigure, dpi=300, bbox_inches='tight')
+    
+    if show_plot == True:
+        plt.show()
+    
+
 #if __name__ == '__main__':
 
 ###########################
@@ -124,25 +171,60 @@ def load_data(filename,
 ####### 2 DIMENSIONAL KDE PLOT #######
 ######################################
 
-#load the data
-filename = r'C:\Users\kdo000\Dropbox\post_doc\Marie_project\data\SB_flare_data\CAGE_16_4_Merged_Manuel.xlsx'
-data = load_data(filename, interactive=True)
-data = nan_remover(data,remove_zeros=True)
-#data = only_within_area(data, survey_area_corners_lonlat=[58.5, 59.5])
+#load the data if its not already a pickle file for it
+load_data = 0
+if load_data == 1:
+    filename = r'C:\Users\kdo000\Dropbox\post_doc\Marie_project\data\SB_flare_data\CAGE_16_4_Merged_Manuel.xlsx'
+    data = load_data(filename, interactive=True)
+    data = nan_remover(data,remove_zeros=True)
+    #data = only_within_area(data, survey_area_corners_lonlat=[58.5, 59.5])
+    #replace keys
+    old_keys = list(data.keys())
+    new_keys = ['lon', 'lat', 'utmzone', 'UTMx', 'UTMy','unknown','flow']
+    data = replace_dict_keys(data, old_keys, new_keys, interactive=False)
 
-#Create a kernel density estimate of the flare locations, use flow rate as weights and a bandwidth of 100 m
+    #save the data to a file that is easy to load using pickle
+    from pickle import dump
+    dump(data, open(r'C:\Users\kdo000\Dropbox\post_doc\Marie_project\data\kde_data\new_data\kde_data.pkl', 'wb'))
+else:
+    #load the data
+    from pickle import load
+    data = load(open(r'C:\Users\kdo000\Dropbox\post_doc\Marie_project\data\kde_data\new_data\kde_data.pkl', 'rb'))
+
+if zoom_in = 1
+    #zoom in on the data
+    survey_area_corners_lonlat = [[9.267,78.65],[9.438,78.661],[9.703,78.492],[9.543,78.481]]
+    #position data
+    data_pos = dict()
+    data_pos['lon'] = data['lon']
+    data_pos['lat'] = data['lat']
+    remove_idxs = only_within_area(data, 
+                            survey_area_corners_lonlat)
+
+    plot_survey_area(data,
+                     remove_idxs,
+                     survey_area_corners_lonlat,
+                     cmap_name='spring',
+                     savefigure= r'C:\Users\kdo000\Dropbox\post_doc\Marie_project\results\kde_plots\new_kde_plots\survey_area_plot.png',
+                     show_plot = True)
+
+    #remove all data points outside the survey area
+    data = {key: data[key][remove_idxs] for key in data.keys()}
+
+################
+### PLOT KDE ###
+################
+        
+### KDE SETTINGS ###
 # Create 2D data of shape (obs, dims)
 data_locs = np.array([data['UTMx'], data['UTMy']]).T
 weights = np.array(data['flow'])
-
-#####################
-### PLOT SETTINGS ###
-#####################
-
 #fig = plt.figure(figsize=(18, 6))
 grid_points = 2**7  # Grid points in each dimension
 N = 26  # Number of contours
 bandwidth = 100 # Bandwidth for the KDE
+
+### PLOT SETTINGS ###
 colormap_name = 'inferno'
 #set background color
 background_color = []
@@ -150,30 +232,29 @@ background_color = []
 plot_lonlat = 0
 #set the whole figure background color
 plt.style.use("dark_background")
+#use white background instead
+#plt.style.use("default")
 
-# Compute the kernel density estimate
+### COMPUTE KDE ###
 kde = TreeKDE(kernel='gaussian',bw = bandwidth, norm=2)
 grid, points = kde.fit(data_locs,weights).evaluate(grid_points)
-
 # The grid is of shape (obs, dims), points are of shape (obs, 1)
 x, y = np.unique(grid[:, 0]), np.unique(grid[:, 1])
 z = points.reshape(grid_points, grid_points).T
 
-#define limits
+### DEFINE LIMITS AND LEVELS ###
 vminlim = -20
 vmaxlim = np.max(np.log(z))
 #define levels for the contour plot
 levels = np.linspace(vminlim, vmaxlim, N)
 
-#just make one plot using the 2 norm and tree kde
+### MAKE KDE PLOT ###
 fig, ax = plt.subplots()
 ax.set_title(f'Norm $p={2}$, bw = {bandwidth} , tree kde')
 if background_color:
     ax.set_facecolor(background_color)
 
-#set range of coloraxis
-
-# Plot the kernel density estimate
+# Plot the KDE as a contour color plot
 sc2d = ax.contourf(x, 
                    y, 
                    np.log(z), 
@@ -181,25 +262,20 @@ sc2d = ax.contourf(x,
                    cmap=colormap_name, 
                    vmin=vminlim, 
                    vmax=vmaxlim)
-#plot some contour lines (only 10)
-#add a scatter plot with black dots on top
+
+# Plot the data points themselves
 ax.scatter(data['UTMx'], 
                 data['UTMy'], 
-                c='k', 
+                c='w', 
                 s=1,
                 alpha=0.5)
 
-#find all points between the limits which are orders of magnitude, i.e. 10, 100, 1000, 10000 etc
-# Define the orders of magnitude for the contours
-#find the order of the minimum value in levels
+# Plot some contour lines on top of the KDE plot, here at the orders of magnitude 10^-4, 10^-3, ..., 10^2
 min_order = np.floor(np.log10(np.exp(levels.min()))).astype(int)
 #find the order of the maximum value in levels
 max_order = np.ceil(np.log10(np.exp(levels.max()))).astype(int)
-
-
 # Create an array of contour levels that are powers of 10
 levels_order = np.logspace(min_order, max_order, num=max_order-min_order+1)
-
 # Plot the contours at the specified levels
 contour_set = ax.contour(x, 
                          y, 
@@ -212,8 +288,8 @@ contour_set = ax.contour(x,
 # Add labels to the contours with the custom formatter
 labels = ax.clabel(contour_set, 
                    inline=True, 
-                   fontsize=8, 
-                   fmt=ticker.FuncFormatter(lambda x, pos: f'{x:.2e}'))
+                   fontsize=6, 
+                   fmt=ticker.FuncFormatter(lambda x, pos: f'{x:.1e}'))
 
 # Create a "fake" colorbar that matches the range of levels
 vmin, vmax = levels.min(), levels.max()
@@ -281,24 +357,24 @@ data_mirrored = np.concatenate((data_sorted, -data_sorted))
 #make a list of bandwidths
 bandwidths = []
 for i in range(len(data_mirrored)):
-    bandwidths.append(np.abs(data_mirrored[i])*0.3)
+    bandwidths.append(np.abs(data_mirrored[i])*0.1)
 
 #KDE HISTOGRAM
 #determine the number of bins to be used
 #set resolution of the histogram
-grid_points = 3000 # Grid points in each dimension
+grid_points = 5000 # Grid points in each dimension
 
-x, y = TreeKDE(kernel = 'gaussian',bw=bandwidths,norm=2).fit(data_mirrored).evaluate(grid_points)
+x, y = TreeKDE(kernel = 'epa',bw=bandwidths,norm=2).fit(data_mirrored).evaluate(grid_points)
 plt.plot(x,y)
-plt.xlim(0,50)
+plt.xlim(0,300)
 #plot the bandwithd ona twinx axis
 
 #plot a histogram
-plt.hist(data_mirrored, bins=1000, density=True)
-plt.xlim(0,50)
+plt.hist(data_mirrored, bins=2000, density=True)
+plt.xlim(0,150)
 #plot legend
 plt.legend(['Kernel density estimate', 'Histogram'])
-plt.ylabel('Probability density')
+plt.ylabel('Probability density (kde)')
 plt.xlabel('Flowrate per single seep')
 #plt.show()
 
