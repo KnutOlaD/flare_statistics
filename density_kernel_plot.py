@@ -21,7 +21,6 @@ import matplotlib.path as mpltPath
 def fmt(x):
     return f"{np.exp(x):.2e}"
 
-
 # nan remover
 def nan_remover(data, remove_zeros=False):
     """Function for removing nan values from the data.
@@ -38,7 +37,6 @@ def nan_remover(data, remove_zeros=False):
             ]  # this is a boolean mask ([data[key] != 0])
             data[key] = data[key][~np.isnan(data[key])]
     return data
-
 
 def only_within_area(data, survey_area_corners_lonlat):
     """Function for removing all data points outside the survey area.
@@ -206,8 +204,8 @@ def plot_survey_area(
 
 # load the data if its not already a pickle file for it
 zoom_in = 1
-load_data = 0
-if load_data == 1:
+load_data_trigger = 1
+if load_data_trigger == 1:
     filename = r"C:\Users\kdo000\Dropbox\post_doc\Marie_project\data\SB_flare_data\CAGE_16_4_Merged_Manuel.xlsx"
     data = load_data(filename, interactive=True)
     data = nan_remover(data, remove_zeros=True)
