@@ -192,8 +192,6 @@ def plot_survey_area(
         plt.show()
 
 
-# if __name__ == '__main__':
-
 ###########################
 ####### PLOTTING ##########
 ###########################
@@ -212,7 +210,7 @@ if load_data_trigger == 1:
     # data = only_within_area(data, survey_area_corners_lonlat=[58.5, 59.5])
     # replace keys
     old_keys = list(data.keys())
-    new_keys = ["lon", "lat", "utmzone", "UTMx", "UTMy", "unknown", "flow"]
+    new_keys = ["lon", "lat", "utmzone", "UTMx", "UTMy", "flow"]
     data = replace_dict_keys(data, old_keys, new_keys, interactive=False)
     # save the data to a file that is easy to load using pickle
     from pickle import dump
@@ -349,7 +347,7 @@ cb.set_ticklabels([f"{np.exp(i):.2e}" for i in np.linspace(vmin, vmax, 6)])
 # Label the colorbar
 cb.set_label("Gas flow [ml/min/m$^2$]")
 
-# replace ticks with latlon coordinates
+# Replace ticks with latlon coordinates
 
 if plot_lonlat == 1:
     # get the x ticks (utm x coordinates)
